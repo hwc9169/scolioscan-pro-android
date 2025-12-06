@@ -1,0 +1,57 @@
+<?xml version="1.0" encoding="utf-8"?>
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="280dp"
+    android:height="320dp"
+    android:viewportWidth="280"
+    android:viewportHeight="320">
+
+    <!-- Upper body silhouette outline (back view) -->
+    <!-- Head -->
+    <path
+        android:pathData="M140,20
+            C165,20 185,40 185,70
+            C185,100 165,120 140,120
+            C115,120 95,100 95,70
+            C95,40 115,20 140,20Z"
+        android:strokeWidth="3"
+        android:strokeColor="#888888"
+        android:fillColor="@android:color/transparent"/>
+
+    <!-- Neck -->
+    <path
+        android:pathData="M125,120 L125,145 L155,145 L155,120"
+        android:strokeWidth="3"
+        android:strokeColor="#888888"
+        android:fillColor="@android:color/transparent"/>
+
+    <!-- Shoulders and Upper Torso -->
+    <path
+        android:pathData="M125,145
+            L20,170
+            L15,190
+            L25,310
+            L55,310
+            L50,200
+            L125,180
+            L125,310
+            L155,310
+            L155,180
+            L230,200
+            L225,310
+            L255,310
+            L265,190
+            L260,170
+            L155,145
+            Z"
+        android:strokeWidth="3"
+        android:strokeColor="#888888"
+        android:fillColor="@android:color/transparent"/>
+
+    <!-- Spine line (center) - from neck to lower back -->
+    <path
+        android:pathData="M140,120 L140,310"
+        android:strokeWidth="2"
+        android:strokeColor="#888888"
+        android:strokeLineCap="round"/>
+
+</vector>

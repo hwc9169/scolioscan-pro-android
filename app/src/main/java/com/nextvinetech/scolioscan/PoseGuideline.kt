@@ -5,6 +5,8 @@ import android.graphics.Canvas
 import android.graphics.Paint
 import android.graphics.RectF
 import android.graphics.Color
+import android.os.Handler
+import android.os.Looper
 import android.util.AttributeSet
 import android.util.Log
 import android.view.View
@@ -12,6 +14,8 @@ import androidx.core.graphics.withSave
 import com.google.mediapipe.tasks.components.containers.NormalizedLandmark
 import com.google.mediapipe.tasks.vision.poselandmarker.PoseLandmarkerResult
 import java.util.concurrent.atomic.AtomicReference
+import kotlin.math.abs
+import kotlin.math.atan2
 import kotlin.math.max
 import kotlin.math.min
 
@@ -24,6 +28,48 @@ class PoseGuideline @JvmOverloads constructor(
   private var innerGuidelineN: RectF? = null
   private var outerGuidelinePx: RectF? = null
   private var innerGuidelinePx: RectF? = null
+
+  // Measurement completion callback
+  interface OnMeasurementCompleteListener {
+    fun onMeasurementComplete(result: MeasurementResult)
+  }
+
+  // UI state update callback
+  interface OnStateUpdateListener {
+    fun onStateUpdate(isOk: Boolean, remainingSeconds: Int, statusMessage: String)
+  }
+
+  data class MeasurementResult(
+    val mainThoracic: Double,
+    val secondThoracic: Double?,
+    val lumbar: Double,
+    val score: Double?
+  )
+
+  private var measurementListener: OnMeasurementCompleteListener? = null
+  private var stateUpdateListener: OnStateUpdateListener? = null
+  private var okStartTime: Long = 0
+  private var isMeasuring = false
+  private var measurementCompleted = false
+  private val mainHandler = Handler(Looper.getMainLooper())
+
+  // Time required to hold position for measurement (milliseconds)
+  private val requiredHoldTime = 3000L
+
+  fun setOnMeasurementCompleteListener(listener: OnMeasurementCompleteListener?) {
+    this.measurementListener = listener
+  }
+
+  fun setOnStateUpdateListener(listener: OnStateUpdateListener?) {
+    this.stateUpdateListener = listener
+  }
+
+  /** Reset measurement state to allow new measurement */
+  fun resetMeasurement() {
+    measurementCompleted = false
+    isMeasuring = false
+    okStartTime = 0
+  }
 
   private fun centeredSymmetric01(src: RectF): RectF {
     val w = (src.right - src.left).coerceIn(0f, 1f)
@@ -98,6 +144,27 @@ class PoseGuideline @JvmOverloads constructor(
     textSize = 16f * resources.displayMetrics.scaledDensity
   }
 
+  // Body guideline paint
+  private val bodyGuidelinePaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+    style = Paint.Style.STROKE
+    color = Color.argb(136, 136, 136, 136) // #88888888
+    strokeWidth = 12f
+  }
+
+  // Guideline state colors
+  private var isGuidelineOk = false
+
+  /** Update guideline color state */
+  fun setGuidelineOk(ok: Boolean) {
+    isGuidelineOk = ok
+    bodyGuidelinePaint.color = if (ok) {
+      Color.argb(255, 76, 175, 80) // #FF4CAF50 green
+    } else {
+      Color.argb(136, 136, 136, 136) // #88888888 gray
+    }
+    postInvalidateOnAnimation()
+  }
+
   /** Call to mirror horizontally (use true for front camera preview). */
   fun setMirrorHorizontally(mirror: Boolean) {
     this.mirror = mirror
@@ -106,18 +173,150 @@ class PoseGuideline @JvmOverloads constructor(
 
   /** Update from analyzer thread. Safe to call off the UI thread. */
   fun update(result: PoseLandmarkerResult) {
-    // We’ll visualize only the first pose for simplicity.
+    // We'll visualize only the first pose for simplicity.
     val poses = result.landmarks()
     latestLandmarks.set(poses.firstOrNull())
     lastGuideResult = algorithm()
     lastGuideResult?.let { guide ->
       Log.d(
-  "PoseOverlay", "GuideResult: ok=${guide.ok}, fromBehind=${guide.fromBehind}, " +
-        "shouldersInOuter=${guide.shouldersInOuter}, " +
-        "shouldersOutOfInner=${guide.shouldersOutOfInner}"
+        "PoseOverlay", "GuideResult: ok=${guide.ok}, fromBehind=${guide.fromBehind}, " +
+          "shouldersInOuter=${guide.shouldersInOuter}, " +
+          "shouldersOutOfInner=${guide.shouldersOutOfInner}"
       )
+
+      // Check for measurement completion
+      checkMeasurementCompletion(guide)
     }
     postInvalidateOnAnimation()
+  }
+
+  private fun checkMeasurementCompletion(guide: GuideResult) {
+    if (measurementCompleted) return
+
+    val currentTime = System.currentTimeMillis()
+
+    if (guide.ok) {
+      // Update guideline color to green
+      mainHandler.post { setGuidelineOk(true) }
+
+      if (!isMeasuring) {
+        // Start measuring
+        isMeasuring = true
+        okStartTime = currentTime
+        Log.d("PoseGuideline", "Started measuring - hold position for ${requiredHoldTime}ms")
+
+        // Notify UI: position OK, countdown starting
+        val remainingSeconds = (requiredHoldTime / 1000).toInt()
+        mainHandler.post {
+          stateUpdateListener?.onStateUpdate(true, remainingSeconds, "자세를 유지하세요")
+        }
+      } else {
+        // Check if held long enough
+        val elapsedTime = currentTime - okStartTime
+        val remainingTime = requiredHoldTime - elapsedTime
+        val remainingSeconds = ((remainingTime + 999) / 1000).toInt().coerceAtLeast(0)
+        Log.d("PoseGuideline", "Holding position: ${elapsedTime}ms / ${requiredHoldTime}ms")
+
+        // Update countdown
+        mainHandler.post {
+          stateUpdateListener?.onStateUpdate(true, remainingSeconds, "자세를 유지하세요")
+        }
+
+        if (elapsedTime >= requiredHoldTime) {
+          // Measurement complete!
+          measurementCompleted = true
+          isMeasuring = false
+
+          val measurementResult = calculateSpineAngles()
+          Log.d("PoseGuideline", "Measurement complete: $measurementResult")
+
+          mainHandler.post {
+            stateUpdateListener?.onStateUpdate(true, 0, "측정 완료!")
+            measurementListener?.onMeasurementComplete(measurementResult)
+          }
+        }
+      }
+    } else {
+      // Update guideline color to gray
+      mainHandler.post { setGuidelineOk(false) }
+
+      // Position lost - reset timer
+      if (isMeasuring) {
+        Log.d("PoseGuideline", "Position lost - resetting measurement")
+        isMeasuring = false
+        okStartTime = 0
+      }
+
+      // Notify UI: position not OK
+      val statusMessage = when {
+        !guide.fromBehind -> "뒤를 보고 서세요"
+        !guide.shouldersInOuter -> "가이드라인 안으로 들어오세요"
+        !guide.shouldersOutOfInner -> "조금 뒤로 오세요"
+        else -> "가이드라인에 맞춰 서세요"
+      }
+      mainHandler.post {
+        stateUpdateListener?.onStateUpdate(false, 0, statusMessage)
+      }
+    }
+  }
+
+  /**
+   * Calculate spine angles from pose landmarks.
+   * This is a simplified estimation based on shoulder and hip positions.
+   * For accurate medical measurements, a proper algorithm is required.
+   */
+  private fun calculateSpineAngles(): MeasurementResult {
+    val lm = latestLandmarks.get()
+
+    if (lm == null) {
+      // Return default values if no landmarks
+      return MeasurementResult(
+        mainThoracic = 0.0,
+        secondThoracic = null,
+        lumbar = 0.0,
+        score = null
+      )
+    }
+
+    // Get key spine-related landmarks
+    // 11: Left shoulder, 12: Right shoulder
+    // 23: Left hip, 24: Right hip
+    val leftShoulder = lm.safeGet(11)
+    val rightShoulder = lm.safeGet(12)
+    val leftHip = lm.safeGet(23)
+    val rightHip = lm.safeGet(24)
+
+    // Calculate shoulder tilt angle (approximation for thoracic curve)
+    val shoulderAngle = if (leftShoulder != null && rightShoulder != null) {
+      val dx = rightShoulder.x() - leftShoulder.x()
+      val dy = rightShoulder.y() - leftShoulder.y()
+      Math.toDegrees(atan2(dy.toDouble(), dx.toDouble()))
+    } else 0.0
+
+    // Calculate hip tilt angle (approximation for lumbar curve)
+    val hipAngle = if (leftHip != null && rightHip != null) {
+      val dx = rightHip.x() - leftHip.x()
+      val dy = rightHip.y() - leftHip.y()
+      Math.toDegrees(atan2(dy.toDouble(), dx.toDouble()))
+    } else 0.0
+
+    // These are simplified estimations
+    // Main thoracic: based on shoulder alignment
+    val mainThoracic = abs(shoulderAngle)
+
+    // Lumbar: based on hip alignment relative to shoulders
+    val lumbar = abs(hipAngle - shoulderAngle)
+
+    // Score: inverse of total deviation (higher is better, max 100)
+    val totalDeviation = mainThoracic + lumbar
+    val score = (100.0 - totalDeviation.coerceIn(0.0, 100.0)).coerceIn(0.0, 100.0)
+
+    return MeasurementResult(
+      mainThoracic = mainThoracic,
+      secondThoracic = null, // Would need more complex calculation
+      lumbar = lumbar,
+      score = score
+    )
   }
 
 
@@ -188,7 +387,86 @@ class PoseGuideline @JvmOverloads constructor(
 
   override fun onDraw(canvas: Canvas) {
     super.onDraw(canvas)
-   // Draw guideline
+
+    // Draw body guideline (upper body silhouette)
+    fun drawBodyGuideline() {
+      val inner = innerGuidelinePx ?: return
+
+      // Calculate body proportions based on screen size
+      // Spine should be centered in the inner guideline area
+      val spineCenterX = (inner.left + inner.right) / 2
+      val bodyTop = height * 0.05f  // Head starts near top
+      val bodyBottom = height * 0.85f  // Torso ends at 85% of screen height
+
+      // Body width - wider than inner guideline, fills most of outer area
+      val outerArea = outerGuidelinePx ?: return
+      val bodyWidth = (outerArea.right - outerArea.left) * 0.9f
+      val halfBodyWidth = bodyWidth / 2
+
+      // Head dimensions (relative to body)
+      //val headRadius = bodyWidth * 0.12f
+      val headRadius = bodyWidth * 0.25f
+      val headCenterY = bodyTop + headRadius
+
+      // Neck
+      val neckTop = headCenterY + headRadius
+      val neckBottom = neckTop + height * 0.01f
+      val neckWidth = headRadius * 0.6f
+
+      // Shoulders
+      val shoulderY = neckBottom + height * 0.02f
+      val shoulderWidth = halfBodyWidth
+
+      // Arms extend outward
+      val armY = shoulderY + height * 0.12f
+      val handY = armY + height * 0.15f
+
+      // Torso
+      val waistY = bodyBottom
+
+      val path = android.graphics.Path()
+
+      // Draw head (circle outline)
+      path.addCircle(spineCenterX, headCenterY, headRadius, android.graphics.Path.Direction.CW)
+
+      // Draw neck
+      path.moveTo(spineCenterX - neckWidth, neckTop)
+      path.lineTo(spineCenterX - neckWidth, neckBottom)
+      path.moveTo(spineCenterX + neckWidth, neckTop)
+      path.lineTo(spineCenterX + neckWidth, neckBottom)
+
+      // Draw shoulders and upper body outline
+      val bodyPath = android.graphics.Path()
+
+      // Left side: neck -> shoulder -> arm -> hand -> back to torso -> waist
+      bodyPath.moveTo(spineCenterX - neckWidth, neckBottom)
+      bodyPath.lineTo(spineCenterX - shoulderWidth, shoulderY)  // Left shoulder
+      bodyPath.lineTo(spineCenterX - shoulderWidth - bodyWidth * 0.15f, armY)  // Upper arm
+      bodyPath.lineTo(spineCenterX - shoulderWidth - bodyWidth * 0.2f, handY)  // Hand/forearm
+      bodyPath.moveTo(spineCenterX - shoulderWidth, shoulderY)
+      bodyPath.lineTo(spineCenterX - shoulderWidth, waistY)  // Left torso to waist
+
+      // Right side
+      bodyPath.moveTo(spineCenterX + neckWidth, neckBottom)
+      bodyPath.lineTo(spineCenterX + shoulderWidth, shoulderY)  // Right shoulder
+      bodyPath.lineTo(spineCenterX + shoulderWidth + bodyWidth * 0.15f, armY)  // Upper arm
+      bodyPath.lineTo(spineCenterX + shoulderWidth + bodyWidth * 0.2f, handY)  // Hand/forearm
+      bodyPath.moveTo(spineCenterX + shoulderWidth, shoulderY)
+      bodyPath.lineTo(spineCenterX + shoulderWidth, waistY)  // Right torso to waist
+
+      // Connect shoulders across back
+      bodyPath.moveTo(spineCenterX - shoulderWidth, shoulderY)
+      bodyPath.lineTo(spineCenterX + shoulderWidth, shoulderY)
+
+      // Spine line (center line from neck to waist)
+      bodyPath.moveTo(spineCenterX, neckTop)
+      bodyPath.lineTo(spineCenterX, waistY)
+
+      canvas.drawPath(path, bodyGuidelinePaint)
+      canvas.drawPath(bodyPath, bodyGuidelinePaint)
+    }
+
+   // Draw guideline rectangles
     fun drawGuideline() {
      val o = outerGuidelinePx
      val i = innerGuidelinePx
@@ -241,8 +519,9 @@ class PoseGuideline @JvmOverloads constructor(
       }
     }
 
-    // drawGuideline()
-    // drawLandmarker()
+    drawBodyGuideline()
+    //drawGuideline()
+    //drawLandmarker()
   }
 
   /** Convert normalized landmark coords [0..1] into view coordinates. */

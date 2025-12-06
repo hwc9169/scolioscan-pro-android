@@ -16,15 +16,23 @@
         android:usesCleartextTraffic="true"
         android:networkSecurityConfig="@xml/network_security_config">
         <activity
-            android:name=".MainActivity"
+            android:name=".SplashActivity"
             android:exported="true"
-            >
+            android:theme="@style/Theme.Scolioscanandroid.Splash">
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
-
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
         </activity>
+        <activity
+            android:name=".ServiceActivity"
+            android:exported="false"
+            android:theme="@style/Theme.Scolioscanandroid.Service" />
+        <activity
+            android:name=".MainActivity"
+            android:exported="false"
+            android:theme="@style/Theme.Scolioscanandroid.Camera"
+            android:screenOrientation="portrait" />
     </application>
 
 </manifest>

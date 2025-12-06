@@ -13,4 +13,37 @@
         android:layout_width="match_parent"
         android:layout_height="match_parent"
         android:clickable="false" />
+
+
+    <!-- Countdown text -->
+    <TextView
+        android:id="@+id/countdownText"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_gravity="center_horizontal|top"
+        android:layout_marginTop="50dp"
+        android:textSize="72sp"
+        android:textColor="@color/countdown_text"
+        android:textStyle="bold"
+        android:visibility="gone"
+        android:shadowColor="#000000"
+        android:shadowDx="2"
+        android:shadowDy="2"
+        android:shadowRadius="4" />
+
+    <!-- Status text -->
+    <TextView
+        android:id="@+id/statusText"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_gravity="center_horizontal|bottom"
+        android:layout_marginBottom="80dp"
+        android:text="뒤를 보고 가이드라인에 맞춰 서세요"
+        android:textSize="18sp"
+        android:textColor="@color/white"
+        android:textStyle="bold"
+        android:background="#80000000"
+        android:paddingHorizontal="16dp"
+        android:paddingVertical="8dp" />
+
 </FrameLayout>

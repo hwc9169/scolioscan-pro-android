@@ -7,4 +7,9 @@
     <color name="teal_700">#FF018786</color>
     <color name="black">#FF000000</color>
     <color name="white">#FFFFFFFF</color>
+    <color name="splash_background">#FF22BCB7</color>
+    <color name="service_status_bar">#FFF3F4F7</color>
+    <color name="guideline_default">#88888888</color>
+    <color name="guideline_ok">#FF4CAF50</color>
+    <color name="countdown_text">#FFFFFFFF</color>
 </resources>

@@ -59,6 +59,8 @@ dependencies {
     implementation(libs.tasks.vision)
     implementation(libs.guava)
 
+    // --- OkHttp for API calls ---
+    implementation(libs.okhttp)
 
     testImplementation(libs.junit)
     androidTestImplementation(libs.androidx.junit)
