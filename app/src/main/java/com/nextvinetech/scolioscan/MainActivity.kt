@@ -15,6 +15,8 @@ import android.widget.TextView
 import android.widget.Toast
 import androidx.annotation.OptIn
 import androidx.appcompat.app.AppCompatActivity
+import androidx.camera.core.ImageCapture
+import androidx.camera.core.ImageCaptureException
 import com.google.common.util.concurrent.ListenableFuture
 import androidx.camera.lifecycle.ProcessCameraProvider
 import androidx.core.content.ContextCompat
@@ -50,6 +52,8 @@ class MainActivity : AppCompatActivity() {
   private lateinit var poseGuideline: PoseGuideline
   private lateinit var countdownText: TextView
   private lateinit var statusText: TextView
+
+  private lateinit var imageCapture: ImageCapture
 
   // JWT token received from ServiceActivity
   private var jwtToken: String? = null
@@ -108,11 +112,13 @@ class MainActivity : AppCompatActivity() {
     poseGuideline.setOnMeasurementCompleteListener(object : PoseGuideline.OnMeasurementCompleteListener {
       override fun onMeasurementComplete(result: PoseGuideline.MeasurementResult) {
         Log.d(TAG, "Measurement complete: mainThoracic=${result.mainThoracic}, lumbar=${result.lumbar}")
+
         submitMeasurement(
           mainThoracic = result.mainThoracic,
           secondThoracic = result.secondThoracic,
           lumbar = result.lumbar,
-          score = result.score
+          severity = result.severity,
+          backType = result.backType
         )
       }
     })
@@ -124,7 +130,38 @@ class MainActivity : AppCompatActivity() {
       }
     })
 
+    poseGuideline.setOnImageCaptureRequestListener(
+      object: PoseGuideline.OnImageCaptureRequestListener {
+        override fun onImageCaptureRequested() {
+          val dir = getExternalFilesDir("scolioscan")!!
+          if (!dir.exists()) dir.mkdirs()
+          val photoFile = java.io.File.createTempFile("scolio_", ".jpg", dir)
+          val outputOptions = ImageCapture.OutputFileOptions.Builder(photoFile).build()
+
+          imageCapture.takePicture(
+            outputOptions,
+            ContextCompat.getMainExecutor(this@MainActivity),
+            object : ImageCapture.OnImageSavedCallback {
+              override fun onImageSaved(outputFileResults: ImageCapture.OutputFileResults) {
+                Log.d(TAG, "Image saved: ${photoFile.absolutePath}")
+                poseGuideline.processCapturedImage(photoFile)
+              }
+
+              override fun onError(exception: ImageCaptureException) {
+                poseGuideline.resetMeasurement()
+                TODO("Not yet implemented")
+              }
+            }
+          )
+        }
+      }
+    )
+
     val cameraSelector = CameraSelector.DEFAULT_BACK_CAMERA
+    imageCapture = ImageCapture.Builder()
+      .setCaptureMode(ImageCapture.CAPTURE_MODE_MINIMIZE_LATENCY)
+      .build()
+
     val imageAnalysis = ImageAnalysis.Builder()
       .setBackpressureStrategy(ImageAnalysis.STRATEGY_KEEP_ONLY_LATEST)
       .build()
@@ -133,7 +170,7 @@ class MainActivity : AppCompatActivity() {
       }
 
     cameraProvider.unbindAll()
-    cameraProvider.bindToLifecycle(this, cameraSelector, preview, imageAnalysis)
+    cameraProvider.bindToLifecycle(this, cameraSelector, preview, imageCapture, imageAnalysis)
   }
 
   /**
@@ -159,14 +196,14 @@ class MainActivity : AppCompatActivity() {
    * @param mainThoracic Main thoracic curve angle
    * @param secondThoracic Second thoracic curve angle (optional)
    * @param lumbar Lumbar curve angle
-   * @param score Overall score (optional)
    * @param imageUrl Image URL if captured (optional)
    */
   fun submitMeasurement(
     mainThoracic: Double,
     secondThoracic: Double? = null,
     lumbar: Double,
-    score: Double? = null,
+    severity: String,
+    backType: String,
     imageUrl: String? = null
   ) {
     val token = jwtToken
@@ -183,7 +220,8 @@ class MainActivity : AppCompatActivity() {
       mainThoracic = mainThoracic,
       secondThoracic = secondThoracic,
       lumbar = lumbar,
-      score = score,
+      severity = severity,
+      backType = backType,
       imageUrl = imageUrl
     )
 

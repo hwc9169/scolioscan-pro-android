@@ -5,6 +5,7 @@ import android.graphics.Canvas
 import android.graphics.Paint
 import android.graphics.RectF
 import android.graphics.Color
+import android.media.Image
 import android.os.Handler
 import android.os.Looper
 import android.util.AttributeSet
@@ -13,6 +14,7 @@ import android.view.View
 import androidx.core.graphics.withSave
 import com.google.mediapipe.tasks.components.containers.NormalizedLandmark
 import com.google.mediapipe.tasks.vision.poselandmarker.PoseLandmarkerResult
+import java.io.File
 import java.util.concurrent.atomic.AtomicReference
 import kotlin.math.abs
 import kotlin.math.atan2
@@ -39,15 +41,24 @@ class PoseGuideline @JvmOverloads constructor(
     fun onStateUpdate(isOk: Boolean, remainingSeconds: Int, statusMessage: String)
   }
 
+  // TODO: Add OnImageCaptureRequestListener to request image capture
+  /** Callback to request image capture from the hosting Activity/Fragment */
+  interface OnImageCaptureRequestListener {
+    fun onImageCaptureRequested()
+  }
+
   data class MeasurementResult(
     val mainThoracic: Double,
     val secondThoracic: Double?,
     val lumbar: Double,
-    val score: Double?
+    val severity: String,
+    val backType: String
   )
 
   private var measurementListener: OnMeasurementCompleteListener? = null
   private var stateUpdateListener: OnStateUpdateListener? = null
+  // TODO: Add a member for the new listener
+  private var imageCaptureListener: OnImageCaptureRequestListener? = null
   private var okStartTime: Long = 0
   private var isMeasuring = false
   private var measurementCompleted = false
@@ -63,6 +74,11 @@ class PoseGuideline @JvmOverloads constructor(
   fun setOnStateUpdateListener(listener: OnStateUpdateListener?) {
     this.stateUpdateListener = listener
   }
+
+  fun setOnImageCaptureRequestListener(listener: OnImageCaptureRequestListener?) {
+    this.imageCaptureListener = listener
+  }
+
 
   /** Reset measurement state to allow new measurement */
   fun resetMeasurement() {
@@ -180,8 +196,8 @@ class PoseGuideline @JvmOverloads constructor(
     lastGuideResult?.let { guide ->
       Log.d(
         "PoseOverlay", "GuideResult: ok=${guide.ok}, fromBehind=${guide.fromBehind}, " +
-          "shouldersInOuter=${guide.shouldersInOuter}, " +
-          "shouldersOutOfInner=${guide.shouldersOutOfInner}"
+        "shouldersInOuter=${guide.shouldersInOuter}, " +
+        "shouldersOutOfInner=${guide.shouldersOutOfInner}"
       )
 
       // Check for measurement completion
@@ -227,12 +243,10 @@ class PoseGuideline @JvmOverloads constructor(
           measurementCompleted = true
           isMeasuring = false
 
-          val measurementResult = calculateSpineAngles()
-          Log.d("PoseGuideline", "Measurement complete: $measurementResult")
-
           mainHandler.post {
-            stateUpdateListener?.onStateUpdate(true, 0, "측정 완료!")
-            measurementListener?.onMeasurementComplete(measurementResult)
+            Log.d("PoseGuideline", "Measurement complete. Requesting image capture.")
+            stateUpdateListener?.onStateUpdate(true, 0, "측정 완료! 분석 중...")
+            imageCaptureListener?.onImageCaptureRequested()
           }
         }
       }
@@ -261,64 +275,42 @@ class PoseGuideline @JvmOverloads constructor(
   }
 
   /**
-   * Calculate spine angles from pose landmarks.
-   * This is a simplified estimation based on shoulder and hip positions.
-   * For accurate medical measurements, a proper algorithm is required.
+   * Processes the captured image file by sending it to the prediction API.
+   * This should be called from the Activity/Fragment after an image is successfully captured.
+   *
+   * @param imageFile The File object of the captured image.
    */
-  private fun calculateSpineAngles(): MeasurementResult {
-    val lm = latestLandmarks.get()
+  fun processCapturedImage(imageFile: File) {
+    Log.d("PoseGuideline", "Processing captured image: ${imageFile.absolutePath}")
 
-    if (lm == null) {
-      // Return default values if no landmarks
-      return MeasurementResult(
-        mainThoracic = 0.0,
-        secondThoracic = null,
-        lumbar = 0.0,
-        score = null
-      )
-    }
+    // Ensure ApiClient is correctly implemented to handle file uploads
+    ApiClient.predictAngle(imageFile, object : ApiClient.AnglePredictionCallback {
+      override fun onSuccess(response: ApiClient.AnglePredictionResponse) {
+        Log.d("PoseGuideline", "API Angle Prediction Successful: $response")
+        val result = MeasurementResult(
+          mainThoracic = response.mainThoracic,
+          secondThoracic = response.proximalThoracic, // Map proximal_thoracic to secondThoracic
+          lumbar = response.lumbar,
+          severity = response.severity,
+          backType = response.backType,
+        )
 
-    // Get key spine-related landmarks
-    // 11: Left shoulder, 12: Right shoulder
-    // 23: Left hip, 24: Right hip
-    val leftShoulder = lm.safeGet(11)
-    val rightShoulder = lm.safeGet(12)
-    val leftHip = lm.safeGet(23)
-    val rightHip = lm.safeGet(24)
+        // Use the handler to post the result back to the main thread
+        mainHandler.post {
+          measurementListener?.onMeasurementComplete(result)
+        }
+      }
 
-    // Calculate shoulder tilt angle (approximation for thoracic curve)
-    val shoulderAngle = if (leftShoulder != null && rightShoulder != null) {
-      val dx = rightShoulder.x() - leftShoulder.x()
-      val dy = rightShoulder.y() - leftShoulder.y()
-      Math.toDegrees(atan2(dy.toDouble(), dx.toDouble()))
-    } else 0.0
-
-    // Calculate hip tilt angle (approximation for lumbar curve)
-    val hipAngle = if (leftHip != null && rightHip != null) {
-      val dx = rightHip.x() - leftHip.x()
-      val dy = rightHip.y() - leftHip.y()
-      Math.toDegrees(atan2(dy.toDouble(), dx.toDouble()))
-    } else 0.0
-
-    // These are simplified estimations
-    // Main thoracic: based on shoulder alignment
-    val mainThoracic = abs(shoulderAngle)
-
-    // Lumbar: based on hip alignment relative to shoulders
-    val lumbar = abs(hipAngle - shoulderAngle)
-
-    // Score: inverse of total deviation (higher is better, max 100)
-    val totalDeviation = mainThoracic + lumbar
-    val score = (100.0 - totalDeviation.coerceIn(0.0, 100.0)).coerceIn(0.0, 100.0)
-
-    return MeasurementResult(
-      mainThoracic = mainThoracic,
-      secondThoracic = null, // Would need more complex calculation
-      lumbar = lumbar,
-      score = score
-    )
+      override fun onError(error: String) {
+        Log.e("PoseGuideline", "API Angle Prediction Failed: $error")
+        // On error, reset the state and inform the user
+        mainHandler.post {
+          stateUpdateListener?.onStateUpdate(false, 0, "분석 실패. 다시 시도하세요.")
+          resetMeasurement()
+        }
+      }
+    })
   }
-
 
   fun algorithm(): GuideResult? {
     val lm = latestLandmarks.get() ?: return null
@@ -466,15 +458,15 @@ class PoseGuideline @JvmOverloads constructor(
       canvas.drawPath(bodyPath, bodyGuidelinePaint)
     }
 
-   // Draw guideline rectangles
+    // Draw guideline rectangles
     fun drawGuideline() {
-     val o = outerGuidelinePx
-     val i = innerGuidelinePx
-     if (o == null || i == null) return
+      val o = outerGuidelinePx
+      val i = innerGuidelinePx
+      if (o == null || i == null) return
 
-     canvas.drawRect(o, outerGuidelinePaint)
-     canvas.drawRect(i, innerGuidelinePaint)
-   }
+      canvas.drawRect(o, outerGuidelinePaint)
+      canvas.drawRect(i, innerGuidelinePaint)
+    }
 
     // Draw landmarker
     fun drawLandmarker() {
