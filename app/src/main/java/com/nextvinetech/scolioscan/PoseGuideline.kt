@@ -289,7 +289,7 @@ class PoseGuideline @JvmOverloads constructor(
         Log.d("PoseGuideline", "API Angle Prediction Successful: $response")
         val result = MeasurementResult(
           mainThoracic = response.mainThoracic,
-          secondThoracic = response.proximalThoracic, // Map proximal_thoracic to secondThoracic
+          secondThoracic = response.secondaryThoracic, // Map proximal_thoracic to secondThoracic
           lumbar = response.lumbar,
           severity = response.severity,
           backType = response.backType,

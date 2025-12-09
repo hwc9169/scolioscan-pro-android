@@ -8,6 +8,7 @@ import okhttp3.MultipartBody
 import okhttp3.OkHttpClient
 import okhttp3.Request
 import okhttp3.RequestBody
+import okhttp3.RequestBody.Companion.toRequestBody
 import okhttp3.RequestBody.Companion.asRequestBody
 import okhttp3.Response
 import org.json.JSONObject
@@ -57,8 +58,8 @@ object ApiClient {
      * Data class for angle prediction response
      */
     data class AnglePredictionResponse(
-        val proximalThoracic: Double,
         val mainThoracic: Double,
+        val secondaryThoracic: Double,
         val lumbar: Double,
         val severity: String,
         val backType: String,
@@ -101,7 +102,7 @@ object ApiClient {
             .build()
 
         val httpRequest = Request.Builder()
-            .url("$BASE_URL/api/angle/")
+            .url("$BASE_URL/ais/angle")
             .post(requestBody)
             .build()
 
@@ -124,8 +125,8 @@ object ApiClient {
                         try {
                             val jsonResponse = JSONObject(responseBody)
                             val parsedResponse = AnglePredictionResponse(
-                                proximalThoracic = jsonResponse.getDouble("proximal_thoracic"),
                                 mainThoracic = jsonResponse.getDouble("main_thoracic"),
+                                secondaryThoracic = jsonResponse.getDouble("secondary_thoracic"),
                                 lumbar = jsonResponse.getDouble("lumbar"),
                                 severity = jsonResponse.getString("severity"),
                                 backType = jsonResponse.getString("back_type")
@@ -161,7 +162,7 @@ object ApiClient {
         val jsonBody = JSONObject().apply {
             put("analysis_type", request.analysisType)
             put("main_thoracic", request.mainThoracic)
-            request.secondThoracic?.let { put("second_thoracic", it) }
+            put("second_thoracic", request.secondThoracic)
             put("lumbar", request.lumbar)
             request.score?.let { put("score", it) }
             request.imageUrl?.let { put("image_url", it) }
