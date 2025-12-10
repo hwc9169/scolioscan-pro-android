@@ -63,6 +63,13 @@ class PoseGuideline @JvmOverloads constructor(
   private var isMeasuring = false
   private var measurementCompleted = false
   private val mainHandler = Handler(Looper.getMainLooper())
+  private var lastCapturedImageFile: java.io.File? = null
+
+  fun setLastCapturedImageFile(file: java.io.File) {
+    lastCapturedImageFile = file
+  }
+
+  fun getLastCapturedImageFile(): java.io.File? = lastCapturedImageFile
 
   // Time required to hold position for measurement (milliseconds)
   private val requiredHoldTime = 3000L
@@ -282,6 +289,7 @@ class PoseGuideline @JvmOverloads constructor(
    */
   fun processCapturedImage(imageFile: File) {
     Log.d("PoseGuideline", "Processing captured image: ${imageFile.absolutePath}")
+    setLastCapturedImageFile(imageFile)
 
     // Ensure ApiClient is correctly implemented to handle file uploads
     ApiClient.predictAngle(imageFile, object : ApiClient.AnglePredictionCallback {

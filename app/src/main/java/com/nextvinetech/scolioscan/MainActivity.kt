@@ -113,12 +113,15 @@ class MainActivity : AppCompatActivity() {
       override fun onMeasurementComplete(result: PoseGuideline.MeasurementResult) {
         Log.d(TAG, "Measurement complete: mainThoracic=${result.mainThoracic}, lumbar=${result.lumbar}")
 
+        val imageFile = poseGuideline.getLastCapturedImageFile()
+
         submitMeasurement(
           mainThoracic = result.mainThoracic,
           secondThoracic = result.secondThoracic,
           lumbar = result.lumbar,
           severity = result.severity,
-          backType = result.backType
+          backType = result.backType,
+          imageFile = imageFile!!
         )
       }
     })
@@ -204,6 +207,7 @@ class MainActivity : AppCompatActivity() {
     lumbar: Double,
     severity: String,
     backType: String,
+    imageFile: java.io.File,
     imageUrl: String? = null
   ) {
     val token = jwtToken
@@ -222,6 +226,7 @@ class MainActivity : AppCompatActivity() {
       lumbar = lumbar,
       severity = severity,
       backType = backType,
+      imageFile = imageFile,
       imageUrl = imageUrl
     )
 

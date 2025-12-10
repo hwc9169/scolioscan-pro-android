@@ -1,5 +1,5 @@
 [versions]
-agp = "8.13.0"
+agp = "8.13.1"
 cameraxVersion = "1.5.1"
 guava = "guava"
 kotlin = "2.0.21"

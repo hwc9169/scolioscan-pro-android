@@ -51,6 +51,7 @@ object ApiClient {
         val score: Double? = null,
         val severity: String? = null,
         val backType: String? = null,
+        val imageFile: java.io.File? = null,
         val imageUrl: String? = null
     )
 
@@ -159,26 +160,38 @@ object ApiClient {
         request: AnalysisRequest,
         callback: ApiCallback
     ) {
-        val jsonBody = JSONObject().apply {
-            put("analysis_type", request.analysisType)
-            put("main_thoracic", request.mainThoracic)
-            put("second_thoracic", request.secondThoracic)
-            put("lumbar", request.lumbar)
-            request.score?.let { put("score", it) }
-            request.imageUrl?.let { put("image_url", it) }
+        val builder = MultipartBody.Builder()
+            .setType(MultipartBody.FORM)
+            .addFormDataPart("analysis_type", request.analysisType.toString())
+            .addFormDataPart("main_thoracic", request.mainThoracic.toString())
+            .addFormDataPart("lumbar", request.lumbar.toString())
+            .addFormDataPart("second_thoracic", request.secondThoracic.toString())
+
+        request.score?.let { builder.addFormDataPart("score", it.toString()) }
+        request.severity?.let { builder.addFormDataPart("severity", it) }
+        request.backType?.let { builder.addFormDataPart("back_type", it) }
+        request.imageUrl?.let { builder.addFormDataPart("image_url", it) }
+
+        // 이미지 파일 첨부 (필요시)
+        if (request.imageFile != null) {
+            val mediaType = "image/jpeg".toMediaType()
+            val fileBody = request.imageFile.asRequestBody(mediaType)
+            builder.addFormDataPart("image", request.imageFile.name, fileBody)
+        } else {
+            Log.w(TAG, "submitAnalysis called without imageFile")
         }
 
-        val requestBody = jsonBody.toString().toRequestBody(JSON_MEDIA_TYPE)
+        val requestBody = builder.build()
+
 
         val httpRequest = Request.Builder()
-            .url("$BASE_URL/api/analysis/")
+            .url("$BASE_URL/api/analysis/")   // 뒤 슬래시 없어도 됨
             .addHeader("Authorization", "Bearer $jwtToken")
-            .addHeader("Content-Type", "application/json")
             .post(requestBody)
             .build()
 
         Log.d(TAG, "Making request to: ${httpRequest.url}")
-        Log.d(TAG, "Request body: $jsonBody")
+        Log.d(TAG, "Request body: $requestBody")
         Log.d(TAG, "Authorization header present: ${jwtToken.take(20)}...")
 
         client.newCall(httpRequest).enqueue(object : Callback {
