@@ -272,7 +272,7 @@ class PoseGuideline @JvmOverloads constructor(
       val statusMessage = when {
         !guide.fromBehind -> "뒤를 보고 서세요"
         !guide.shouldersInOuter -> "가이드라인 안으로 들어오세요"
-        !guide.shouldersOutOfInner -> "조금 뒤로 오세요"
+        !guide.shouldersOutOfInner -> "조금 가까이 오세요"
         else -> "가이드라인에 맞춰 서세요"
       }
       mainHandler.post {
