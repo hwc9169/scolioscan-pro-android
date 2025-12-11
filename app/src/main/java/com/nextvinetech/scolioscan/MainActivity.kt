@@ -258,7 +258,7 @@ class PoseAnalyzer(context: Context, poseGuideline: PoseGuideline): ImageAnalysi
   private val landmarker: PoseLandmarker
 
   init {
-    val modelName = "models/pose_landmarker_lite.task"
+    val modelName = "models/pose_landmarker_full.task"
     val base = BaseOptions.builder()
       .setModelAssetPath(modelName)
       .setDelegate(Delegate.CPU)
@@ -266,8 +266,8 @@ class PoseAnalyzer(context: Context, poseGuideline: PoseGuideline): ImageAnalysi
 
     val options = PoseLandmarker.PoseLandmarkerOptions.builder()
       .setBaseOptions(base)
-      .setMinPoseDetectionConfidence(0.4f)
-      .setMinTrackingConfidence(0.4f)
+      .setMinPoseDetectionConfidence(0.5f)
+      .setMinTrackingConfidence(0.5f)
       .setRunningMode(RunningMode.LIVE_STREAM)
       .setNumPoses(1)
       .setResultListener { result: PoseLandmarkerResult, _: MPImage? ->
