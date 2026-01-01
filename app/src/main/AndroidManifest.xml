@@ -3,7 +3,9 @@
     xmlns:tools="http://schemas.android.com/tools">
     <uses-feature android:name="android.hardware.camera.any"/>
     <uses-permission android:name="android.permission.INTERNET" />
+    <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
     <uses-permission android:name="android.permission.CAMERA" />
+    <uses-permission android:name="android.permission.VIBRATE" />
     <application
         android:allowBackup="true"
         android:dataExtractionRules="@xml/data_extraction_rules"
@@ -18,6 +20,7 @@
         <activity
             android:name=".SplashActivity"
             android:exported="true"
+            android:screenOrientation="portrait"
             android:theme="@style/Theme.Scolioscanandroid.Splash">
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
@@ -27,12 +30,18 @@
         <activity
             android:name=".ServiceActivity"
             android:exported="false"
+            android:screenOrientation="portrait"
             android:theme="@style/Theme.Scolioscanandroid.Service" />
         <activity
             android:name=".MainActivity"
             android:exported="false"
             android:theme="@style/Theme.Scolioscanandroid.Camera"
             android:screenOrientation="portrait" />
+        <activity
+            android:name=".ScoliometerActivity"
+            android:exported="false"
+            android:theme="@style/Theme.Scolioscanandroid.Scoliometer"
+            android:screenOrientation="landscape" />
     </application>
 
 </manifest>

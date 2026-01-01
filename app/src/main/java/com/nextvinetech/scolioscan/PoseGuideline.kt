@@ -47,6 +47,11 @@ class PoseGuideline @JvmOverloads constructor(
     fun onImageCaptureRequested()
   }
 
+  // Measurement failed callback
+  interface OnMeasurementFailedListener {
+    fun onMeasurementFailed(error: String)
+  }
+
   data class MeasurementResult(
     val mainThoracic: Double,
     val secondThoracic: Double?,
@@ -57,8 +62,8 @@ class PoseGuideline @JvmOverloads constructor(
 
   private var measurementListener: OnMeasurementCompleteListener? = null
   private var stateUpdateListener: OnStateUpdateListener? = null
-  // TODO: Add a member for the new listener
   private var imageCaptureListener: OnImageCaptureRequestListener? = null
+  private var measurementFailedListener: OnMeasurementFailedListener? = null
   private var okStartTime: Long = 0
   private var isMeasuring = false
   private var measurementCompleted = false
@@ -86,6 +91,9 @@ class PoseGuideline @JvmOverloads constructor(
     this.imageCaptureListener = listener
   }
 
+  fun setOnMeasurementFailedListener(listener: OnMeasurementFailedListener?) {
+    this.measurementFailedListener = listener
+  }
 
   /** Reset measurement state to allow new measurement */
   fun resetMeasurement() {
@@ -311,10 +319,9 @@ class PoseGuideline @JvmOverloads constructor(
 
       override fun onError(error: String) {
         Log.e("PoseGuideline", "API Angle Prediction Failed: $error")
-        // On error, reset the state and inform the user
+        // On error, notify listener to close the activity
         mainHandler.post {
-          stateUpdateListener?.onStateUpdate(false, 0, "분석 실패. 다시 시도하세요.")
-          resetMeasurement()
+          measurementFailedListener?.onMeasurementFailed(error)
         }
       }
     })

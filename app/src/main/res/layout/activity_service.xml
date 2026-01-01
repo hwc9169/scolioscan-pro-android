@@ -10,4 +10,53 @@
         android:layout_width="match_parent"
         android:layout_height="match_parent" />
 
+    <!-- 인터넷 연결 없음 화면 -->
+    <LinearLayout
+        android:id="@+id/noInternetContent"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:orientation="vertical"
+        android:gravity="center"
+        android:visibility="gone"
+        android:background="@color/white"
+        android:padding="32dp">
+
+        <ImageView
+            android:layout_width="120dp"
+            android:layout_height="120dp"
+            android:src="@android:drawable/ic_dialog_alert"
+            android:tint="@color/splash_background"
+            android:contentDescription="No Internet" />
+
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="24dp"
+            android:text="인터넷 연결 필요"
+            android:textSize="24sp"
+            android:textColor="@color/splash_background"
+            android:textStyle="bold" />
+
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="12dp"
+            android:text="페이지를 불러올 수 없습니다.\nWi-Fi 또는 모바일 데이터를 확인해주세요."
+            android:textSize="14sp"
+            android:textColor="#666666"
+            android:textAlignment="center"
+            android:gravity="center" />
+
+        <Button
+            android:id="@+id/retryButton"
+            android:layout_width="wrap_content"
+            android:layout_height="48dp"
+            android:layout_marginTop="32dp"
+            android:paddingHorizontal="32dp"
+            android:text="다시 시도"
+            android:textColor="@color/white"
+            android:backgroundTint="@color/splash_background" />
+
+    </LinearLayout>
+
 </FrameLayout>

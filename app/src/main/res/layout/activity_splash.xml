@@ -4,12 +4,70 @@
     android:layout_height="match_parent"
     android:background="@color/splash_background">
 
-    <ImageView
-        android:layout_width="270dp"
-        android:layout_height="270dp"
-        android:layout_gravity="center"
-        android:src="@mipmap/ic_launcher_monochrome"
-        android:tint="@color/white"
-        android:contentDescription="NextVine Logo" />
+    <!-- 기본 스플래시 화면 -->
+    <LinearLayout
+        android:id="@+id/splashContent"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:orientation="vertical"
+        android:gravity="center">
+
+        <ImageView
+            android:layout_width="270dp"
+            android:layout_height="270dp"
+            android:src="@mipmap/ic_launcher_monochrome"
+            android:tint="@color/white"
+            android:contentDescription="NextVine Logo" />
+
+    </LinearLayout>
+
+    <!-- 인터넷 연결 없음 화면 -->
+    <LinearLayout
+        android:id="@+id/noInternetContent"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:orientation="vertical"
+        android:gravity="center"
+        android:visibility="gone"
+        android:padding="32dp">
+
+        <ImageView
+            android:layout_width="120dp"
+            android:layout_height="120dp"
+            android:src="@android:drawable/ic_dialog_alert"
+            android:tint="@color/white"
+            android:contentDescription="No Internet" />
+
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="24dp"
+            android:text="인터넷 연결 필요"
+            android:textSize="24sp"
+            android:textColor="@color/white"
+            android:textStyle="bold" />
+
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="12dp"
+            android:text="앱을 사용하려면 인터넷 연결이 필요합니다.\nWi-Fi 또는 모바일 데이터를 확인해주세요."
+            android:textSize="14sp"
+            android:textColor="@color/white"
+            android:textAlignment="center"
+            android:gravity="center"
+            android:alpha="0.8" />
+
+        <Button
+            android:id="@+id/retryButton"
+            android:layout_width="wrap_content"
+            android:layout_height="48dp"
+            android:layout_marginTop="32dp"
+            android:paddingHorizontal="32dp"
+            android:text="다시 시도"
+            android:textColor="@color/splash_background"
+            android:backgroundTint="@color/white" />
+
+    </LinearLayout>
 
 </FrameLayout>

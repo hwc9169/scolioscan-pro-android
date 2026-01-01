@@ -58,6 +58,9 @@ class MainActivity : AppCompatActivity() {
   // JWT token received from ServiceActivity
   private var jwtToken: String? = null
 
+  // Flag to prevent multiple finish() calls
+  private var isClosing = false
+
   private val requestCameraPermission = registerForActivityResult(
     ActivityResultContracts.RequestPermission()
   ) { granted ->
@@ -133,6 +136,23 @@ class MainActivity : AppCompatActivity() {
       }
     })
 
+    // Set measurement failed listener to close activity on prediction failure
+    poseGuideline.setOnMeasurementFailedListener(object : PoseGuideline.OnMeasurementFailedListener {
+      override fun onMeasurementFailed(error: String) {
+        if (isClosing) return
+        isClosing = true
+        Log.e(TAG, "Measurement failed: $error")
+        // Unbind camera to stop processing
+        try {
+          cameraProviderFuture.get().unbindAll()
+        } catch (e: Exception) {
+          Log.e(TAG, "Failed to unbind camera", e)
+        }
+        Toast.makeText(this@MainActivity, "분석 실패: $error", Toast.LENGTH_SHORT).show()
+        finish()
+      }
+    })
+
     poseGuideline.setOnImageCaptureRequestListener(
       object: PoseGuideline.OnImageCaptureRequestListener {
         override fun onImageCaptureRequested() {
@@ -151,8 +171,16 @@ class MainActivity : AppCompatActivity() {
               }
 
               override fun onError(exception: ImageCaptureException) {
-                poseGuideline.resetMeasurement()
-                TODO("Not yet implemented")
+                if (isClosing) return
+                isClosing = true
+                Log.e(TAG, "Image capture failed", exception)
+                try {
+                  cameraProviderFuture.get().unbindAll()
+                } catch (e: Exception) {
+                  Log.e(TAG, "Failed to unbind camera", e)
+                }
+                Toast.makeText(this@MainActivity, "촬영 실패", Toast.LENGTH_SHORT).show()
+                finish()
               }
             }
           )
@@ -210,11 +238,22 @@ class MainActivity : AppCompatActivity() {
     imageFile: java.io.File,
     imageUrl: String? = null
   ) {
+    if (isClosing) return
+    isClosing = true
+
+    // Unbind camera immediately
+    try {
+      cameraProviderFuture.get().unbindAll()
+    } catch (e: Exception) {
+      Log.e(TAG, "Failed to unbind camera", e)
+    }
+
     val token = jwtToken
     if (token.isNullOrEmpty()) {
       Log.e(TAG, "JWT token is not available")
       runOnUiThread {
         Toast.makeText(this, "인증 정보가 없습니다", Toast.LENGTH_SHORT).show()
+        finish()
       }
       return
     }
@@ -234,7 +273,6 @@ class MainActivity : AppCompatActivity() {
       override fun onSuccess(response: JSONObject) {
         Log.d(TAG, "Measurement submitted successfully: $response")
         runOnUiThread {
-          Toast.makeText(this@MainActivity, "측정 결과가 저장되었습니다", Toast.LENGTH_SHORT).show()
           finish() // Return to ServiceActivity
         }
       }
@@ -243,6 +281,7 @@ class MainActivity : AppCompatActivity() {
         Log.e(TAG, "Failed to submit measurement: $error")
         runOnUiThread {
           Toast.makeText(this@MainActivity, "저장 실패: $error", Toast.LENGTH_SHORT).show()
+          finish() // Close anyway after showing error
         }
       }
     })
